@@ -1,0 +1,10 @@
+BasedOnStyle: LLVM
+IndentWidth: 2
+BreakBeforeBraces: Allman
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+ColumnLimit: 100
+Standard: c++17
+SortIncludes: CaseSensitive
