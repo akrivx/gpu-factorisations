@@ -1,5 +1,6 @@
 #include "lu.hpp"
 
+#include "blas_handle.hpp"
 #include "cuda_check.hpp"
 #include "device_buffer.hpp"
 #include "validate_shape.hpp"
@@ -171,6 +172,50 @@ void factorise_matrix(gpu_fact::MatrixView<double> a, gpu_fact::MatrixView<int> 
 	GPU_FACT_CUDA_CHECK(cudaGetLastError());
 }
 
+__global__ void permute_rhs_kernel(gpu_fact::MatrixView<const int> pivots,
+                                   gpu_fact::MatrixView<double> b)
+{
+	const std::size_t col = blockIdx.x * blockDim.x + threadIdx.x;
+	if (col >= b.cols)
+		return;
+	// Pivot entries are an ordered swap history, not a final permutation vector.
+	for (std::size_t i = 0; i < b.rows; ++i)
+	{
+		const int pivot = pivots(i, 0) - 1;
+		if (pivot != static_cast<int>(i))
+		{
+			const double value = b(i, col);
+			b(i, col) = b(pivot, col);
+			b(pivot, col) = value;
+		}
+	}
+}
+
+void permute_rhs(gpu_fact::MatrixView<const int> pivots, gpu_fact::MatrixView<double> b)
+{
+	const auto blocks = (b.cols + BLOCK_SIZE - 1) / BLOCK_SIZE;
+	permute_rhs_kernel<<<blocks, BLOCK_SIZE>>>(pivots, b);
+	GPU_FACT_CUDA_CHECK(cudaGetLastError());
+}
+
+// Row-major LU appears as (LU)^T to cuBLAS: L is stored in its upper triangle
+// and U in its lower triangle. OP_T recovers the original triangular systems.
+void solve_triangular(cublasHandle_t handle, gpu_fact::MatrixView<const double> a,
+                      gpu_fact::MatrixView<double> b)
+{
+	const int n = static_cast<int>(a.rows);
+	const int lda = static_cast<int>(a.row_stride);
+	const int incx = static_cast<int>(b.row_stride);
+	for (std::size_t col = 0; col < b.cols; ++col)
+	{
+		GPU_FACT_CUBLAS_CHECK(cublasDtrsv(handle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T,
+		                                  CUBLAS_DIAG_UNIT, n, a.data, lda, b.data + col, incx));
+		GPU_FACT_CUBLAS_CHECK(cublasDtrsv(handle, CUBLAS_FILL_MODE_LOWER, CUBLAS_OP_T,
+		                                  CUBLAS_DIAG_NON_UNIT, n, a.data, lda, b.data + col,
+		                                  incx));
+	}
+}
+
 } // namespace
 
 namespace gpu_fact
@@ -188,6 +233,10 @@ void lu_solve_device(MatrixView<double> a, MatrixView<int> pivots, MatrixView<do
 	    cudaMemcpy(&singular, zero_pivot_flag.data(), sizeof(singular), cudaMemcpyDeviceToHost));
 	if (singular)
 		throw std::runtime_error("LU solve (device): singular matrix");
+	permute_rhs(pivots.as_const(), b);
+	gpu_fact::BlasHandle blas;
+	solve_triangular(blas.get(), a.as_const(), b);
+	GPU_FACT_CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 } // namespace gpu_fact

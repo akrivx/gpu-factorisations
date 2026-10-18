@@ -88,8 +88,14 @@ address space. The device API uses views pointing to device storage.
 
 The reference uses LAPACKE's `LAPACKE_dgesv` with `LAPACK_ROW_MAJOR`; its internal
 layout conversion is part of the reference runtime. Save input copies for
-residual checks. Singular matrices raise exceptions. `lu_host` and `lu_device`
-are stubs that validate their views and then throw a "not yet implemented" error.
+residual checks. Singular matrices raise exceptions. The host and device solvers
+perform pivoted LU factorisation, ordered RHS row swaps, and forward/backward
+substitution. GPU triangular solves use two cuBLAS `cublasDtrsv` calls per RHS
+(unit lower, then non-unit upper). Transpose operations and reversed triangle
+selection account for row-major LU storage; vector increments account for RHS row
+strides. Factorisation and RHS permutation still use custom CUDA kernels.
+The host solver currently operates on the first RHS only; the device solver
+supports multiple RHS columns and padded row strides.
 
 `lu_example.cpp` generates a random, nonsingular system (default seed 42),
 with one RHS and a known solution. It solves fresh copies using the reference,
@@ -100,8 +106,7 @@ compared against the reference; the reference is
 checked against the generated solution. The tolerance (default `1e-10`) controls
 the exit status using the relative solution error and scaled residual; raw absolute
 errors are reported for inspection. Successful rows show numbers rather than PASS/FAIL.
-Current host/device stubs are explicitly
-reported as skipped; other errors or comparison failures return a nonzero exit code.
+Solver errors or comparison failures return a nonzero exit code.
 Device inputs and outputs are copied between host and device storage.
 
 ```sh
