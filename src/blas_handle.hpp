@@ -13,7 +13,7 @@ class BlasHandle
   public:
 	BlasHandle()
 	{
-		cublas_check(cublasCreate(&handle_), "cublasCreate");
+		GPU_FACT_CUBLAS_CHECK(cublasCreate(&handle_));
 	}
 	~BlasHandle() noexcept
 	{
@@ -40,7 +40,7 @@ class BlasHandle
 	void reset() noexcept
 	{
 		if (handle_)
-			cublas_check_noexcept(cublasDestroy(std::exchange(handle_, nullptr)), "cublasDestroy");
+			GPU_FACT_CUBLAS_CHECK_NOEXCEPT(cublasDestroy(std::exchange(handle_, nullptr)));
 	}
 
   private:

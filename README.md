@@ -54,8 +54,10 @@ for another machine or without a visible GPU.
 
 Internal CUDA utilities live in `src/` under namespace `gpu_fact`:
 
-- `cuda_check(status, operation)` and `cublas_check(status, operation)` throw on failure.
-- Their `_noexcept` variants return normally on success; on failure they report to
+- `GPU_FACT_CUDA_CHECK(expression)` and `GPU_FACT_CUBLAS_CHECK(expression)` throw on failure.
+  Each expression is evaluated once; errors include its spelling and the caller's
+  function, file, and line number.
+- Their `_NOEXCEPT` variants return normally on success; on failure they report to
   stderr and exit with `EXIT_FAILURE`, including when called from destructors.
 - `DeviceBuffer<T>` owns device storage, exposes `data()` and `size()`, and supports an empty state.
 - `BlasHandle` owns a cuBLAS handle and exposes `get()`.

@@ -28,39 +28,56 @@ int main(int argc, char** argv)
 	{
 		if (argc == 2 && std::string(argv[1]) == "--cuda-failure")
 		{
-			gpu_fact::cuda_check_noexcept(cudaErrorInvalidValue, "expected CUDA failure");
+			GPU_FACT_CUDA_CHECK_NOEXCEPT(cudaErrorInvalidValue);
 			return 0; // The failure check must exit before reaching this line.
 		}
 		if (argc == 2 && std::string(argv[1]) == "--cublas-failure")
 		{
-			gpu_fact::cublas_check_noexcept(CUBLAS_STATUS_INVALID_VALUE, "expected cuBLAS failure");
+			GPU_FACT_CUBLAS_CHECK_NOEXCEPT(CUBLAS_STATUS_INVALID_VALUE);
 			return 0;
 		}
 		const bool cpu_only = argc == 2 && std::string(argv[1]) == "--cpu-only";
 		if (argc > 1 && !cpu_only)
 			throw std::invalid_argument("Usage: cuda_utilities_test [--cpu-only]");
-		gpu_fact::cuda_check(cudaSuccess);
-		gpu_fact::cublas_check(CUBLAS_STATUS_SUCCESS);
-		gpu_fact::cuda_check_noexcept(cudaSuccess);
-		gpu_fact::cublas_check_noexcept(CUBLAS_STATUS_SUCCESS);
+		GPU_FACT_CUDA_CHECK(cudaSuccess);
+		GPU_FACT_CUBLAS_CHECK(CUBLAS_STATUS_SUCCESS);
+		GPU_FACT_CUDA_CHECK_NOEXCEPT(cudaSuccess);
+		GPU_FACT_CUBLAS_CHECK_NOEXCEPT(CUBLAS_STATUS_SUCCESS);
 		bool cuda_threw = false, blas_threw = false;
+		int failure_line = 0;
 		try
 		{
-			gpu_fact::cuda_check(cudaErrorInvalidValue, "test CUDA");
+			failure_line = __LINE__ + 1;
+			GPU_FACT_CUDA_CHECK(cudaErrorInvalidValue);
 		}
 		catch (const std::runtime_error& error)
 		{
-			cuda_threw = std::string(error.what()).find("test CUDA") != std::string::npos;
+			const std::string message = error.what();
+			cuda_threw = message.find("cudaErrorInvalidValue") != std::string::npos &&
+			             message.find(std::string(__FILE__) + ":" + std::to_string(failure_line)) !=
+			                 std::string::npos &&
+			             message.find("in main:") != std::string::npos;
 		}
 		try
 		{
-			gpu_fact::cublas_check(CUBLAS_STATUS_INVALID_VALUE, "test BLAS");
+			failure_line = __LINE__ + 1;
+			GPU_FACT_CUBLAS_CHECK(CUBLAS_STATUS_INVALID_VALUE);
 		}
 		catch (const std::runtime_error& error)
 		{
-			blas_threw = std::string(error.what()).find("test BLAS") != std::string::npos;
+			const std::string message = error.what();
+			blas_threw = message.find("CUBLAS_STATUS_INVALID_VALUE") != std::string::npos &&
+			             message.find(std::string(__FILE__) + ":" + std::to_string(failure_line)) !=
+			                 std::string::npos &&
+			             message.find("in main:") != std::string::npos;
 		}
 		require(cuda_threw && blas_threw);
+		int evaluations = 0;
+		GPU_FACT_CUDA_CHECK((++evaluations, cudaSuccess));
+		GPU_FACT_CUDA_CHECK_NOEXCEPT((++evaluations, cudaSuccess));
+		GPU_FACT_CUBLAS_CHECK((++evaluations, CUBLAS_STATUS_SUCCESS));
+		GPU_FACT_CUBLAS_CHECK_NOEXCEPT((++evaluations, CUBLAS_STATUS_SUCCESS));
+		require(evaluations == 4);
 		Buffer empty(0);
 		Buffer moved_empty(std::move(empty));
 		require(!empty.data() && !moved_empty.data() && moved_empty.size() == 0);
@@ -79,7 +96,7 @@ int main(int argc, char** argv)
 
 		Buffer source(1);
 		const int value = 42;
-		gpu_fact::cuda_check(
+		GPU_FACT_CUDA_CHECK(
 		    cudaMemcpy(source.data(), &value, sizeof(value), cudaMemcpyHostToDevice));
 		auto* allocation = source.data();
 		Buffer moved(std::move(source));
@@ -91,7 +108,7 @@ int main(int argc, char** argv)
 		auto& same_buffer = destination;
 		destination = std::move(same_buffer);
 		int result = 0;
-		gpu_fact::cuda_check(
+		GPU_FACT_CUDA_CHECK(
 		    cudaMemcpy(&result, destination.data(), sizeof(result), cudaMemcpyDeviceToHost));
 		require(result == value && destination.size() == 1);
 		destination = std::move(moved_empty);
@@ -108,7 +125,7 @@ int main(int argc, char** argv)
 		auto& same_handle = target;
 		target = std::move(same_handle);
 		cublasPointerMode_t mode;
-		gpu_fact::cublas_check(cublasGetPointerMode(target.get(), &mode));
+		GPU_FACT_CUBLAS_CHECK(cublasGetPointerMode(target.get(), &mode));
 		target = std::move(moved_handle);
 		require(!target.get());
 		target.reset();

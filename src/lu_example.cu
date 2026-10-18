@@ -156,22 +156,22 @@ int main(int argc, char** argv)
 			return 0;
 
 		gpu_fact::DeviceBuffer<double> da(9), dx(3), db(3), residual(3);
-		gpu_fact::cuda_check(
+		GPU_FACT_CUDA_CHECK(
 		    cudaMemcpy(da.data(), a.data(), 9 * sizeof(double), cudaMemcpyHostToDevice));
-		gpu_fact::cuda_check(
+		GPU_FACT_CUDA_CHECK(
 		    cudaMemcpy(dx.data(), x.data(), 3 * sizeof(double), cudaMemcpyHostToDevice));
-		gpu_fact::cuda_check(
+		GPU_FACT_CUDA_CHECK(
 		    cudaMemcpy(db.data(), b.data(), 3 * sizeof(double), cudaMemcpyHostToDevice));
 		gpu_fact::BlasHandle blas;
 		const double one = 1, zero = 0;
 		// cuBLAS sees row-major A as column-major A^T; transpose it to compute A*x.
-		gpu_fact::cublas_check(cublasDgemv(blas.get(), CUBLAS_OP_T, 3, 3, &one, da.data(), 3,
-		                                   dx.data(), 1, &zero, residual.data(), 1));
+		GPU_FACT_CUBLAS_CHECK(cublasDgemv(blas.get(), CUBLAS_OP_T, 3, 3, &one, da.data(), 3,
+		                                  dx.data(), 1, &zero, residual.data(), 1));
 		subtract<<<1, 32>>>(residual.data(), db.data(), 3);
-		gpu_fact::cuda_check(cudaGetLastError());
-		gpu_fact::cuda_check(cudaDeviceSynchronize());
+		GPU_FACT_CUDA_CHECK(cudaGetLastError());
+		GPU_FACT_CUDA_CHECK(cudaDeviceSynchronize());
 		double norm = 0;
-		gpu_fact::cublas_check(cublasDnrm2(blas.get(), 3, residual.data(), 1, &norm));
+		GPU_FACT_CUBLAS_CHECK(cublasDnrm2(blas.get(), 3, residual.data(), 1, &norm));
 		std::cout << "cuBLAS residual ||Ax-b||_2: " << norm << '\n';
 		if (!std::isfinite(norm) || norm > 1e-12)
 			throw std::runtime_error("Residual too large");

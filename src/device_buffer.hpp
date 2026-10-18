@@ -21,7 +21,7 @@ template <typename T = double> class DeviceBuffer
 		if (n != 0)
 		{
 			void* allocation = nullptr;
-			cuda_check(cudaMalloc(&allocation, n * sizeof(T)), "cudaMalloc");
+			GPU_FACT_CUDA_CHECK(cudaMalloc(&allocation, n * sizeof(T)));
 			data_ = static_cast<T*>(allocation);
 			size_ = n;
 		}
@@ -61,7 +61,7 @@ template <typename T = double> class DeviceBuffer
 	void reset() noexcept
 	{
 		if (data_)
-			cuda_check_noexcept(cudaFree(std::exchange(data_, nullptr)), "cudaFree");
+			GPU_FACT_CUDA_CHECK_NOEXCEPT(cudaFree(std::exchange(data_, nullptr)));
 		size_ = 0;
 	}
 
