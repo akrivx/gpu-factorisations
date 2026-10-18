@@ -16,10 +16,14 @@ target_include_directories(lu_reference PUBLIC include)
 target_compile_features(lu_reference PUBLIC cxx_std_17)
 target_link_libraries(lu_reference PRIVATE lapacke)
 
+add_library(lu_host src/lu_host.cpp)
+target_include_directories(lu_host PUBLIC include)
+target_compile_features(lu_host PUBLIC cxx_std_17)
+
 # Link this target from new CUDA experiments to get the common dependencies.
 add_library(factorisation_dependencies INTERFACE)
 target_link_libraries(factorisation_dependencies INTERFACE
-  lu_reference CUDA::cudart CUDA::cublas)
+  lu_reference lu_host CUDA::cudart CUDA::cublas)
 
 add_executable(lu_example src/lu_example.cu)
 target_link_libraries(lu_example PRIVATE factorisation_dependencies)

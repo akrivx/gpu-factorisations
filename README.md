@@ -52,17 +52,26 @@ for another machine or without a visible GPU.
 
 ## Experiments
 
-`lu_reference` provides `factorisations::lu_solve(n, nrhs, a, b)` using reference
-LAPACKE's `LAPACKE_dgesv` (LU with partial pivoting followed by triangular solves).
-Matrices, right-hand sides, and solutions use double precision and contiguous
-row-major storage: `A[i*n+j]`, `B[i*nrhs+j]`, and `X[i*nrhs+j]`.
-The wrapper passes `LAPACK_ROW_MAJOR`; LAPACKE handles LAPACK's column-major
-layout internally. Input copies and LAPACKE's layout conversion are part of the
-reference solve and should be accounted for when timing.
-The cuBLAS GEMV example uses a transpose operation to interpret the row-major
-matrix correctly without a device-side layout conversion.
-Inputs are preserved; invalid dimensions and singular matrices
-raise exceptions. The dependency uses 32-bit LAPACK integers (LP64).
+`include/lu.hpp` declares the LU methods in namespace `gpu_fact`.
+`gpu_fact::lu_solve_reference(a, pivots, b)` accepts non-owning `MatrixView`
+values from `include/matrix_view.hpp`. A view contains `data`, `rows`, `cols`,
+and `row_stride` (in elements), with indexing `data[i*row_stride+j]`.
+A must be nonempty and square; B has the same row count and one or more RHS
+columns. Pivots are an `n*1` integer view with `row_stride=1`. A and B may have
+padded rows. The solve overwrites A with LU factors, B with solutions, and
+pivots with 1-based LAPACK row indices.
+
+`src/validate_shape.hpp` provides the common `validate_lu_shapes` helper used by
+the reference and host entry points. It rejects incompatible shapes, null
+pointers, invalid strides, and dimensions/strides exceeding LP64 limits.
+Callers must supply sufficiently large, non-overlapping buffers in the correct
+address space. The device API uses views pointing to device storage.
+
+The reference uses LAPACKE's `LAPACKE_dgesv` with `LAPACK_ROW_MAJOR`; its internal
+layout conversion is part of the reference runtime. Save input copies for
+residual checks. Singular matrices raise exceptions. `lu_host` remains a stub
+that validates its views and then throws; the device method is declared for
+future implementation.
 
 `lu_example` solves a system requiring row pivoting and checks the known solution
 and singular-matrix handling. It then evaluates `Ax` with cuBLAS, subtracts `b`

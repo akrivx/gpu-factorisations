@@ -1,0 +1,15 @@
+#include "lu.hpp"
+#include "validate_shape.hpp"
+
+#include <stdexcept>
+
+namespace gpu_fact
+{
+
+void lu_solve_host(MatrixView<double> a, MatrixView<int> pivots, MatrixView<double> b)
+{
+	validate_lu_shapes(a, pivots, b);
+	throw std::runtime_error("LU solve (host): host LU not yet implemented");
+}
+
+} // namespace gpu_fact

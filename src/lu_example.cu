@@ -1,10 +1,12 @@
-#include "lu_reference.hpp"
+#include "lu.hpp"
 #include <cmath>
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 void check(cudaError_t status)
 {
@@ -63,38 +65,122 @@ int main(int argc, char** argv)
 		// Requires a pivot in column one. A*[1,2,3]^T = [7,3,5]^T.
 		const std::vector<double> a{0, 2, 1, 1, -2, 2, 2, 3, -1};
 		const std::vector<double> b{7, 3, 5};
-		const auto x = factorisations::lu_solve(3, 1, a, b);
+		auto lu = a;
+		auto x = b;
+		std::vector<int> pivots(3);
+		gpu_fact::lu_solve_reference({lu.data(), 3, 3, 3}, {pivots.data(), 3, 1, 1},
+		                             {x.data(), 3, 1, 1});
 		for (int i = 0; i < 3; ++i)
+		{
 			if (!std::isfinite(x[i]) || std::abs(x[i] - (i + 1)) > 1e-12)
 				throw std::runtime_error("Reference solution mismatch");
-		// Two distinct RHS columns, stored next to each other in each row.
-		// Expected X rows: [1,-1], [2,0], [3,2].
-		const std::vector<double> multiple_b{7, 2, 3, 3, 5, -4};
-		const std::vector<double> expected_multiple{1, -1, 2, 0, 3, 2};
-		const auto multiple = factorisations::lu_solve(3, 2, a, multiple_b);
-		for (int j = 0; j < 2; ++j)
-			for (int i = 0; i < 3; ++i)
-				if (!std::isfinite(multiple[i * 2 + j]) ||
-				    std::abs(multiple[i * 2 + j] - expected_multiple[i * 2 + j]) > 1e-12)
-					throw std::runtime_error("Multiple right-hand sides mismatch");
-		if (a != std::vector<double>{0, 2, 1, 1, -2, 2, 2, 3, -1} ||
-		    multiple_b != std::vector<double>{7, 2, 3, 3, 5, -4})
-			throw std::runtime_error("Reference solve modified its inputs");
+			if (pivots[i] < i + 1 || pivots[i] > 3)
+				throw std::runtime_error("Invalid pivot index");
+		}
+		if (pivots[0] == 1 || lu == a)
+			throw std::runtime_error("Expected in-place factorisation with row pivoting");
+		auto second_lu = a;
+		std::vector<double> second_b{2, 3, -4};
+		const std::vector<double> expected{-1, 0, 2};
+		gpu_fact::lu_solve_reference({second_lu.data(), 3, 3, 3}, {pivots.data(), 3, 1, 1},
+		                             {second_b.data(), 3, 1, 1});
+		for (int i = 0; i < 3; ++i)
+			if (!std::isfinite(second_b[i]) || std::abs(second_b[i] - expected[i]) > 1e-12)
+				throw std::runtime_error("Second solution mismatch");
+		// Padded rows and two RHS columns exercise the view strides and inferred shapes.
+		std::vector<double> padded_a{0, 2, 1, 99, 1, -2, 2, 99, 2, 3, -1, 99};
+		std::vector<double> padded_b{7, 2, 99, 3, 3, 99, 5, -4, 99};
+		gpu_fact::lu_solve_reference({padded_a.data(), 3, 3, 4}, {pivots.data(), 3, 1, 1},
+		                             {padded_b.data(), 3, 2, 3});
+		for (int i = 0; i < 3; ++i)
+		{
+			if (!std::isfinite(padded_b[i * 3]) || !std::isfinite(padded_b[i * 3 + 1]) ||
+			    std::abs(padded_b[i * 3] - (i + 1)) > 1e-12 ||
+			    std::abs(padded_b[i * 3 + 1] - expected[i]) > 1e-12 || padded_b[i * 3 + 2] != 99 ||
+			    padded_a[i * 4 + 3] != 99)
+				throw std::runtime_error("Padded multi-RHS solve mismatch");
+		}
+		// Invalid LP64 extents must be rejected by the solver before accessing storage.
+		const auto int_max = static_cast<std::size_t>((std::numeric_limits<int>::max)());
+		for (auto invalid_extent : {std::size_t{0}, int_max + 1})
+		{
+			for (int field = 0; field < 9; ++field)
+			{
+				gpu_fact::MatrixView<double> av{lu.data(), 3, 3, 3};
+				gpu_fact::MatrixView<int> pv{pivots.data(), 3, 1, 1};
+				gpu_fact::MatrixView<double> bv{x.data(), 3, 1, 1};
+				std::size_t* fields[]{&av.rows, &av.cols, &av.row_stride,
+				                      &pv.rows, &pv.cols, &pv.row_stride,
+				                      &bv.rows, &bv.cols, &bv.row_stride};
+				*fields[field] = invalid_extent;
+				bool rejected = false;
+				try
+				{
+					gpu_fact::lu_solve_reference(av, pv, bv);
+				}
+				catch (const std::invalid_argument&)
+				{
+					rejected = true;
+				}
+				if (!rejected)
+					throw std::runtime_error("Invalid LP64 extent was accepted");
+			}
+		}
+		auto expect_invalid = [&](gpu_fact::MatrixView<double> av, gpu_fact::MatrixView<int> pv,
+		                          gpu_fact::MatrixView<double> bv)
+		{
+			try
+			{
+				gpu_fact::lu_solve_reference(av, pv, bv);
+			}
+			catch (const std::invalid_argument&)
+			{
+				return;
+			}
+			throw std::runtime_error("Invalid LU view was accepted");
+		};
+		expect_invalid({lu.data(), 3, 2, 3}, {pivots.data(), 3, 1, 1}, {x.data(), 3, 1, 1});
+		expect_invalid({lu.data(), 3, 3, 2}, {pivots.data(), 3, 1, 1}, {x.data(), 3, 1, 1});
+		expect_invalid({lu.data(), 3, 3, 3}, {pivots.data(), 2, 1, 1}, {x.data(), 3, 1, 1});
+		expect_invalid({lu.data(), 3, 3, 3}, {pivots.data(), 3, 1, 2}, {x.data(), 3, 1, 1});
+		expect_invalid({lu.data(), 3, 3, 3}, {pivots.data(), 3, 1, 1}, {x.data(), 2, 1, 1});
+		expect_invalid({lu.data(), 3, 3, 3}, {pivots.data(), 3, 1, 1}, {x.data(), 3, 0, 1});
+		expect_invalid({lu.data(), 3, 3, 3}, {pivots.data(), 3, 1, 1}, {x.data(), 3, 1, 0});
+		expect_invalid({lu.data(), 3, 3, static_cast<std::size_t>(1) << 31},
+		               {pivots.data(), 3, 1, 1}, {x.data(), 3, 1, 1});
 		bool invalid_rejected = false;
 		try
 		{
-			factorisations::lu_solve(3, 1, {1}, b);
+			gpu_fact::lu_solve_reference({lu.data(), 0, 0, 0}, {pivots.data(), 3, 1, 1},
+			                             {x.data(), 3, 1, 1});
 		}
 		catch (const std::invalid_argument&)
 		{
 			invalid_rejected = true;
 		}
 		if (!invalid_rejected)
-			throw std::runtime_error("Invalid storage was accepted");
+			throw std::runtime_error("Invalid dimension was accepted");
+		bool null_rejected = false;
+		try
+		{
+			gpu_fact::lu_solve_reference({nullptr, 3, 3, 3}, {pivots.data(), 3, 1, 1},
+			                             {x.data(), 3, 1, 1});
+		}
+		catch (const std::invalid_argument&)
+		{
+			null_rejected = true;
+		}
+		if (!null_rejected)
+			throw std::runtime_error("Null matrix was accepted");
 		bool singular_rejected = false;
 		try
 		{
-			factorisations::lu_solve(2, 1, {1, 2, 2, 4}, {1, 2});
+			std::vector<double> singular_a{1, 2, 2, 4};
+			std::vector<double> singular_b{1, 2};
+			std::vector<int> singular_pivots(2);
+			gpu_fact::lu_solve_reference({singular_a.data(), 2, 2, 2},
+			                             {singular_pivots.data(), 2, 1, 1},
+			                             {singular_b.data(), 2, 1, 1});
 		}
 		catch (const std::runtime_error&)
 		{
