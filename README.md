@@ -91,13 +91,35 @@ layout conversion is part of the reference runtime. Save input copies for
 residual checks. Singular matrices raise exceptions. `lu_host` and `lu_device`
 are stubs that validate their views and then throw a "not yet implemented" error.
 
-`lu_example` solves a system requiring row pivoting and checks the known solution
-and singular-matrix handling. It then evaluates `Ax` with cuBLAS, subtracts `b`
-with a CUDA kernel, and checks the residual norm. The LU factorisation itself
-runs on the CPU; this is a reference for future GPU implementations.
+`lu_example.cpp` generates a random, nonsingular system (default seed 42),
+with one RHS and a known solution. It solves fresh copies using the reference,
+host, and device methods. Completed solves print numerical errors: absolute and
+relative infinity-norm solution errors, `||Ax-b||inf`, and the scaled residual
+`||Ax-b||inf / (||A||inf*||x||inf + ||b||inf)`. Host and device solutions are
+compared against the reference; the reference is
+checked against the generated solution. The tolerance (default `1e-10`) controls
+the exit status using the relative solution error and scaled residual; raw absolute
+errors are reported for inspection. Successful rows show numbers rather than PASS/FAIL.
+Current host/device stubs are explicitly
+reported as skipped; other errors or comparison failures return a nonzero exit code.
+Device inputs and outputs are copied between host and device storage.
 
-CTest runs the CPU checks by default (`lu_example --cpu-only`). Configure with
-`-DGPU_FACTORISATIONS_TEST_GPU=ON` to register the GPU residual check too.
+```sh
+./build/lu_example --size 256
+./build/lu_example --size 256 --seed 123 --tolerance 1e-12 --cpu-only
+```
+
+The default size is 128. `--size` accepts integers from 1 to `INT_MAX`, subject
+to available memory. The normal run requires a working CUDA device;
+`--cpu-only` skips the device solver.
+Seeds are unsigned 32-bit integers (including zero); tolerance must be finite and
+positive. The seed and tolerance are printed in each run. The same seed reproduces
+the inputs with the same C++ standard library; random distributions and floating-point
+results can differ between toolchains and platforms.
+
+CTest runs deterministic LU validation cases in `lu_reference_test`, random CPU
+comparisons, and utility checks by default. Configure with
+`-DGPU_FACTORISATIONS_TEST_GPU=ON` to register GPU comparison and utility tests too.
 Add new `.cu` executables and link `factorisation_dependencies` to reuse LAPACK,
 the CUDA runtime, and cuBLAS. Use larger matrices and suitable relative residuals
 for numerical comparisons; this tiny example is a smoke test, not a benchmark.

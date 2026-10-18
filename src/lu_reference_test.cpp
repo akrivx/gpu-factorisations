@@ -1,30 +1,15 @@
-#include "blas_handle.hpp"
-#include "device_buffer.hpp"
 #include "lu.hpp"
 #include <cmath>
-#include <cublas_v2.h>
-#include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-// A tiny kernel gives new experiments a working CUDA compilation example.
-__global__ void subtract(double* x, const double* y, int n)
-{
-	const int i = blockIdx.x * blockDim.x + threadIdx.x;
-	if (i < n)
-		x[i] -= y[i];
-}
-
-int main(int argc, char** argv)
+int main()
 {
 	try
 	{
-		const bool cpu_only = argc == 2 && std::string(argv[1]) == "--cpu-only";
-		if (argc > 1 && !cpu_only)
-			throw std::invalid_argument("Usage: lu_example [--cpu-only]");
 		// Requires a pivot in column one. A*[1,2,3]^T = [7,3,5]^T.
 		const std::vector<double> a{0, 2, 1, 1, -2, 2, 2, 3, -1};
 		const std::vector<double> b{7, 3, 5};
@@ -152,29 +137,6 @@ int main(int argc, char** argv)
 		if (!singular_rejected)
 			throw std::runtime_error("Singular matrix was accepted");
 		std::cout << "LAPACK solution: " << x[0] << ' ' << x[1] << ' ' << x[2] << '\n';
-		if (cpu_only)
-			return 0;
-
-		gpu_fact::DeviceBuffer<double> da(9), dx(3), db(3), residual(3);
-		GPU_FACT_CUDA_CHECK(
-		    cudaMemcpy(da.data(), a.data(), 9 * sizeof(double), cudaMemcpyHostToDevice));
-		GPU_FACT_CUDA_CHECK(
-		    cudaMemcpy(dx.data(), x.data(), 3 * sizeof(double), cudaMemcpyHostToDevice));
-		GPU_FACT_CUDA_CHECK(
-		    cudaMemcpy(db.data(), b.data(), 3 * sizeof(double), cudaMemcpyHostToDevice));
-		gpu_fact::BlasHandle blas;
-		const double one = 1, zero = 0;
-		// cuBLAS sees row-major A as column-major A^T; transpose it to compute A*x.
-		GPU_FACT_CUBLAS_CHECK(cublasDgemv(blas.get(), CUBLAS_OP_T, 3, 3, &one, da.data(), 3,
-		                                  dx.data(), 1, &zero, residual.data(), 1));
-		subtract<<<1, 32>>>(residual.data(), db.data(), 3);
-		GPU_FACT_CUDA_CHECK(cudaGetLastError());
-		GPU_FACT_CUDA_CHECK(cudaDeviceSynchronize());
-		double norm = 0;
-		GPU_FACT_CUBLAS_CHECK(cublasDnrm2(blas.get(), 3, residual.data(), 1, &norm));
-		std::cout << "cuBLAS residual ||Ax-b||_2: " << norm << '\n';
-		if (!std::isfinite(norm) || norm > 1e-12)
-			throw std::runtime_error("Residual too large");
 		return 0;
 	}
 	catch (const std::exception& error)
