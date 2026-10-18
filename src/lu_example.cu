@@ -61,18 +61,25 @@ int main(int argc, char **argv)
     if (argc > 1 && !cpu_only)
       throw std::invalid_argument("Usage: lu_example [--cpu-only]");
     // Requires a pivot in column one. A*[1,2,3]^T = [7,3,5]^T.
-    const std::vector<double> a{0, 1, 2, 2, -2, 3, 1, 2, -1};
+    const std::vector<double> a{0, 2, 1, 1, -2, 2, 2, 3, -1};
     const std::vector<double> b{7, 3, 5};
     const auto x = factorisations::lu_solve(3, 1, a, b);
     for (int i = 0; i < 3; ++i)
       if (!std::isfinite(x[i]) || std::abs(x[i] - (i + 1)) > 1e-12)
         throw std::runtime_error("Reference solution mismatch");
-    const auto multiple = factorisations::lu_solve(3, 2, a, {7, 3, 5, 14, 6, 10});
+    // Two distinct RHS columns, stored next to each other in each row.
+    // Expected X rows: [1,-1], [2,0], [3,2].
+    const std::vector<double> multiple_b{7, 2, 3, 3, 5, -4};
+    const std::vector<double> expected_multiple{1, -1, 2, 0, 3, 2};
+    const auto multiple = factorisations::lu_solve(3, 2, a, multiple_b);
     for (int j = 0; j < 2; ++j)
       for (int i = 0; i < 3; ++i)
-        if (!std::isfinite(multiple[j * 3 + i]) ||
-            std::abs(multiple[j * 3 + i] - (j + 1) * (i + 1)) > 1e-12)
+        if (!std::isfinite(multiple[i * 2 + j]) ||
+            std::abs(multiple[i * 2 + j] - expected_multiple[i * 2 + j]) > 1e-12)
           throw std::runtime_error("Multiple right-hand sides mismatch");
+    if (a != std::vector<double>{0, 2, 1, 1, -2, 2, 2, 3, -1} ||
+        multiple_b != std::vector<double>{7, 2, 3, 3, 5, -4})
+      throw std::runtime_error("Reference solve modified its inputs");
     bool invalid_rejected = false;
     try
     {
@@ -105,7 +112,8 @@ int main(int argc, char **argv)
     check(cudaMemcpy(db.data, b.data(), 3 * sizeof(double), cudaMemcpyHostToDevice));
     BlasHandle blas;
     const double one = 1, zero = 0;
-    check(cublasDgemv(blas.handle, CUBLAS_OP_N, 3, 3, &one, da.data, 3, dx.data, 1, &zero,
+    // cuBLAS sees row-major A as column-major A^T; transpose it to compute A*x.
+    check(cublasDgemv(blas.handle, CUBLAS_OP_T, 3, 3, &one, da.data, 3, dx.data, 1, &zero,
                       residual.data, 1));
     subtract<<<1, 32>>>(residual.data, db.data, 3);
     check(cudaGetLastError());

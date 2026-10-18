@@ -1,14 +1,7 @@
 #include "lu_reference.hpp"
+#include <lapacke.h>
 #include <stdexcept>
 #include <string>
-
-// The pinned reference LAPACK uses the LP64 Fortran ABI (32-bit integers).
-extern "C"
-{
-  void dgetrf_(const int *, const int *, double *, const int *, int *, int *);
-  void dgetrs_(const char *, const int *, const int *, const double *, const int *, const int *,
-               double *, const int *, int *, std::size_t);
-}
 
 std::vector<double> factorisations::lu_solve(int n, int nrhs, const std::vector<double> &a,
                                              const std::vector<double> &b)
@@ -17,16 +10,14 @@ std::vector<double> factorisations::lu_solve(int n, int nrhs, const std::vector<
     throw std::invalid_argument("LU solve: invalid dimensions or storage size");
   auto lu = a;
   auto x = b;
-  std::vector<int> pivots(n);
-  int info = 0;
-  dgetrf_(&n, &n, lu.data(), &n, pivots.data(), &info);
+  std::vector<lapack_int> pivots(n);
+  const lapack_int info =
+      LAPACKE_dgesv(LAPACK_ROW_MAJOR, n, nrhs, lu.data(), n, pivots.data(), x.data(), nrhs);
+  if (info == LAPACK_WORK_MEMORY_ERROR || info == LAPACK_TRANSPOSE_MEMORY_ERROR)
+    throw std::runtime_error("LAPACKE_dgesv: workspace allocation failed");
   if (info > 0)
     throw std::runtime_error("LU solve: singular matrix");
   if (info < 0)
-    throw std::runtime_error("DGETRF: invalid argument " + std::to_string(-info));
-  const char trans = 'N';
-  dgetrs_(&trans, &n, &nrhs, lu.data(), &n, pivots.data(), x.data(), &n, &info, 1);
-  if (info != 0)
-    throw std::runtime_error("DGETRS failed: " + std::to_string(info));
+    throw std::runtime_error("LAPACKE_dgesv: invalid argument " + std::to_string(-info));
   return x;
 }

@@ -35,7 +35,8 @@ ctest --preset default
 ```
 
 On Windows run `build\lu_example.exe`. The first configure downloads a pinned
-vcpkg checkout and builds reference LAPACK and BLAS automatically. On Windows,
+vcpkg checkout and builds LAPACKE, reference LAPACK, and BLAS automatically. A
+local vcpkg overlay enables LAPACKE in the pinned reference LAPACK port. On Windows,
 vcpkg also provisions its Fortran build toolchain. This needs network access and
 can take several minutes. Subsequent builds reuse the dependency cache.
 An existing vcpkg installation can be supplied using
@@ -52,9 +53,15 @@ for another machine or without a visible GPU.
 ## Experiments
 
 `lu_reference` provides `factorisations::lu_solve(n, nrhs, a, b)` using reference
-LAPACK's DGETRF (LU with partial pivoting) and DGETRS (triangular solves).
-Matrices and right-hand sides use double precision and column-major storage,
-matching cuBLAS. Inputs are preserved; invalid dimensions and singular matrices
+LAPACKE's `LAPACKE_dgesv` (LU with partial pivoting followed by triangular solves).
+Matrices, right-hand sides, and solutions use double precision and contiguous
+row-major storage: `A[i*n+j]`, `B[i*nrhs+j]`, and `X[i*nrhs+j]`.
+The wrapper passes `LAPACK_ROW_MAJOR`; LAPACKE handles LAPACK's column-major
+layout internally. Input copies and LAPACKE's layout conversion are part of the
+reference solve and should be accounted for when timing.
+The cuBLAS GEMV example uses a transpose operation to interpret the row-major
+matrix correctly without a device-side layout conversion.
+Inputs are preserved; invalid dimensions and singular matrices
 raise exceptions. The dependency uses 32-bit LAPACK integers (LP64).
 
 `lu_example` solves a system requiring row pivoting and checks the known solution

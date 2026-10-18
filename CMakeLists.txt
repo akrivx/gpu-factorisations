@@ -9,13 +9,12 @@ project(gpu_factorisations VERSION 0.1.0 LANGUAGES CXX CUDA)
 include(cmake/Formatting.cmake)
 
 find_package(CUDAToolkit REQUIRED)
-set(BLA_SIZEOF_INTEGER 4)
-find_package(LAPACK REQUIRED)
+find_package(lapacke CONFIG REQUIRED)
 
 add_library(lu_reference src/lu_reference.cpp)
 target_include_directories(lu_reference PUBLIC include)
 target_compile_features(lu_reference PUBLIC cxx_std_17)
-target_link_libraries(lu_reference PUBLIC LAPACK::LAPACK)
+target_link_libraries(lu_reference PRIVATE lapacke)
 
 # Link this target from new CUDA experiments to get the common dependencies.
 add_library(factorisation_dependencies INTERFACE)
