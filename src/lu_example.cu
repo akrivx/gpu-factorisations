@@ -1,3 +1,5 @@
+#include "blas_handle.hpp"
+#include "device_buffer.hpp"
 #include "lu.hpp"
 #include <cmath>
 #include <cublas_v2.h>
@@ -7,45 +9,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-void check(cudaError_t status)
-{
-	if (status != cudaSuccess)
-		throw std::runtime_error(cudaGetErrorString(status));
-}
-void check(cublasStatus_t status)
-{
-	if (status != CUBLAS_STATUS_SUCCESS)
-		throw std::runtime_error("cuBLAS error " + std::to_string(int(status)));
-}
-struct DeviceBuffer
-{
-	double* data = nullptr;
-	explicit DeviceBuffer(std::size_t n)
-	{
-		check(cudaMalloc(&data, n * sizeof(double)));
-	}
-	~DeviceBuffer()
-	{
-		cudaFree(data);
-	}
-	DeviceBuffer(const DeviceBuffer&) = delete;
-	DeviceBuffer& operator=(const DeviceBuffer&) = delete;
-};
-struct BlasHandle
-{
-	cublasHandle_t handle;
-	BlasHandle()
-	{
-		check(cublasCreate(&handle));
-	}
-	~BlasHandle()
-	{
-		cublasDestroy(handle);
-	}
-	BlasHandle(const BlasHandle&) = delete;
-	BlasHandle& operator=(const BlasHandle&) = delete;
-};
 
 // A tiny kernel gives new experiments a working CUDA compilation example.
 __global__ void subtract(double* x, const double* y, int n)
@@ -192,20 +155,23 @@ int main(int argc, char** argv)
 		if (cpu_only)
 			return 0;
 
-		DeviceBuffer da(9), dx(3), db(3), residual(3);
-		check(cudaMemcpy(da.data, a.data(), 9 * sizeof(double), cudaMemcpyHostToDevice));
-		check(cudaMemcpy(dx.data, x.data(), 3 * sizeof(double), cudaMemcpyHostToDevice));
-		check(cudaMemcpy(db.data, b.data(), 3 * sizeof(double), cudaMemcpyHostToDevice));
-		BlasHandle blas;
+		gpu_fact::DeviceBuffer<double> da(9), dx(3), db(3), residual(3);
+		gpu_fact::cuda_check(
+		    cudaMemcpy(da.data(), a.data(), 9 * sizeof(double), cudaMemcpyHostToDevice));
+		gpu_fact::cuda_check(
+		    cudaMemcpy(dx.data(), x.data(), 3 * sizeof(double), cudaMemcpyHostToDevice));
+		gpu_fact::cuda_check(
+		    cudaMemcpy(db.data(), b.data(), 3 * sizeof(double), cudaMemcpyHostToDevice));
+		gpu_fact::BlasHandle blas;
 		const double one = 1, zero = 0;
 		// cuBLAS sees row-major A as column-major A^T; transpose it to compute A*x.
-		check(cublasDgemv(blas.handle, CUBLAS_OP_T, 3, 3, &one, da.data, 3, dx.data, 1, &zero,
-		                  residual.data, 1));
-		subtract<<<1, 32>>>(residual.data, db.data, 3);
-		check(cudaGetLastError());
-		check(cudaDeviceSynchronize());
+		gpu_fact::cublas_check(cublasDgemv(blas.get(), CUBLAS_OP_T, 3, 3, &one, da.data(), 3,
+		                                   dx.data(), 1, &zero, residual.data(), 1));
+		subtract<<<1, 32>>>(residual.data(), db.data(), 3);
+		gpu_fact::cuda_check(cudaGetLastError());
+		gpu_fact::cuda_check(cudaDeviceSynchronize());
 		double norm = 0;
-		check(cublasDnrm2(blas.handle, 3, residual.data, 1, &norm));
+		gpu_fact::cublas_check(cublasDnrm2(blas.get(), 3, residual.data(), 1, &norm));
 		std::cout << "cuBLAS residual ||Ax-b||_2: " << norm << '\n';
 		if (!std::isfinite(norm) || norm > 1e-12)
 			throw std::runtime_error("Residual too large");

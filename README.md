@@ -52,6 +52,23 @@ for another machine or without a visible GPU.
 
 ## Experiments
 
+Internal CUDA utilities live in `src/` under namespace `gpu_fact`:
+
+- `cuda_check(status, operation)` and `cublas_check(status, operation)` throw on failure.
+- Their `_noexcept` variants return normally on success; on failure they report to
+  stderr and exit with `EXIT_FAILURE`, including when called from destructors.
+- `DeviceBuffer<T>` owns device storage, exposes `data()` and `size()`, and supports an empty state.
+- `BlasHandle` owns a cuBLAS handle and exposes `get()`.
+
+Both owners are move-only with non-throwing moves and cleanup. Moved-from owners
+are empty; move assignment releases the destination's previous resource. `reset()`
+releases ownership and reports cleanup failures through the non-throwing checks.
+Keep the owning CUDA device/context valid during cleanup.
+
+`cuda_utilities_test --cpu-only` checks status handling and empty buffers;
+`cuda_utilities_test` also exercises buffer and handle moves on the GPU. GPU tests
+are registered with CTest when `GPU_FACTORISATIONS_TEST_GPU=ON`.
+
 `include/lu.hpp` declares the LU methods in namespace `gpu_fact`.
 `gpu_fact::lu_solve_reference(a, pivots, b)` accepts non-owning `MatrixView`
 values from `include/matrix_view.hpp`. A view contains `data`, `rows`, `cols`,
