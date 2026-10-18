@@ -2,7 +2,9 @@ BasedOnStyle: LLVM
 DerivePointerAlignment: false
 PointerAlignment: Left
 ReferenceAlignment: Left
-IndentWidth: 2
+UseTab: ForIndentation
+IndentWidth: 4
+TabWidth: 4
 BreakBeforeBraces: Allman
 AllowShortBlocksOnASingleLine: Never
 AllowShortFunctionsOnASingleLine: None

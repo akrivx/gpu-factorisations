@@ -5,8 +5,8 @@ C++17/CUDA experiments with a CPU reference LU solve and cuBLAS primitives.
 ## Formatting
 
 Install clang-format 14 or newer and put it on `PATH`, then configure CMake.
-The repository's `.clang-format` applies an LLVM-based style with two-space
-indentation, Allman braces (opening braces on new lines), and a 100-column limit
+The repository's `.clang-format` applies an LLVM-based style with tab indentation
+(width 4), Allman braces (opening braces on new lines), and a 100-column limit
 to C++ and CUDA sources.
 
 ```sh
