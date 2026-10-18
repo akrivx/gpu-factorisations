@@ -18,7 +18,7 @@ void check(cublasStatus_t status)
 }
 struct DeviceBuffer
 {
-  double *data = nullptr;
+  double* data = nullptr;
   explicit DeviceBuffer(std::size_t n)
   {
     check(cudaMalloc(&data, n * sizeof(double)));
@@ -27,8 +27,8 @@ struct DeviceBuffer
   {
     cudaFree(data);
   }
-  DeviceBuffer(const DeviceBuffer &) = delete;
-  DeviceBuffer &operator=(const DeviceBuffer &) = delete;
+  DeviceBuffer(const DeviceBuffer&) = delete;
+  DeviceBuffer& operator=(const DeviceBuffer&) = delete;
 };
 struct BlasHandle
 {
@@ -41,19 +41,19 @@ struct BlasHandle
   {
     cublasDestroy(handle);
   }
-  BlasHandle(const BlasHandle &) = delete;
-  BlasHandle &operator=(const BlasHandle &) = delete;
+  BlasHandle(const BlasHandle&) = delete;
+  BlasHandle& operator=(const BlasHandle&) = delete;
 };
 
 // A tiny kernel gives new experiments a working CUDA compilation example.
-__global__ void subtract(double *x, const double *y, int n)
+__global__ void subtract(double* x, const double* y, int n)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
   if (i < n)
     x[i] -= y[i];
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
   try
   {
@@ -85,7 +85,7 @@ int main(int argc, char **argv)
     {
       factorisations::lu_solve(3, 1, {1}, b);
     }
-    catch (const std::invalid_argument &)
+    catch (const std::invalid_argument&)
     {
       invalid_rejected = true;
     }
@@ -96,7 +96,7 @@ int main(int argc, char **argv)
     {
       factorisations::lu_solve(2, 1, {1, 2, 2, 4}, {1, 2});
     }
-    catch (const std::runtime_error &)
+    catch (const std::runtime_error&)
     {
       singular_rejected = true;
     }
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
       throw std::runtime_error("Residual too large");
     return 0;
   }
-  catch (const std::exception &error)
+  catch (const std::exception& error)
   {
     std::cerr << error.what() << '\n';
     return 1;

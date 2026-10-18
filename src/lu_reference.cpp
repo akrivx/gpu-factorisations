@@ -3,8 +3,8 @@
 #include <stdexcept>
 #include <string>
 
-std::vector<double> factorisations::lu_solve(int n, int nrhs, const std::vector<double> &a,
-                                             const std::vector<double> &b)
+std::vector<double> factorisations::lu_solve(int n, int nrhs, const std::vector<double>& a,
+                                             const std::vector<double>& b)
 {
   if (n <= 0 || nrhs <= 0 || a.size() != std::size_t(n) * n || b.size() != std::size_t(n) * nrhs)
     throw std::invalid_argument("LU solve: invalid dimensions or storage size");

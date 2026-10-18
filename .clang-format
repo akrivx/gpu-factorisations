@@ -1,4 +1,7 @@
 BasedOnStyle: LLVM
+DerivePointerAlignment: false
+PointerAlignment: Left
+ReferenceAlignment: Left
 IndentWidth: 2
 BreakBeforeBraces: Allman
 AllowShortBlocksOnASingleLine: Never
