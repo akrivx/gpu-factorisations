@@ -36,10 +36,10 @@ set_target_properties(lu_example PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUI
 
 include(CTest)
 if(BUILD_TESTING)
-  add_executable(cuda_utilities_test src/cuda_utilities_test.cu)
+  add_executable(cuda_utilities_test src/cuda_utilities_test.cpp)
   target_include_directories(cuda_utilities_test PRIVATE include)
   target_link_libraries(cuda_utilities_test PRIVATE CUDA::cudart CUDA::cublas)
-  set_target_properties(cuda_utilities_test PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED YES)
+  target_compile_features(cuda_utilities_test PRIVATE cxx_std_17)
   add_test(NAME cuda_utilities_cpu COMMAND cuda_utilities_test --cpu-only)
   add_test(NAME cuda_check_exit COMMAND cuda_utilities_test --cuda-failure)
   add_test(NAME cublas_check_exit COMMAND cuda_utilities_test --cublas-failure)
