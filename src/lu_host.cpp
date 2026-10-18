@@ -47,10 +47,7 @@ void factorise_matrix(gpu_fact::MatrixView<double> a, gpu_fact::MatrixView<int> 
 		const int pivot = find_pivot(a, k);
 		pivots(k, 0) = pivot + 1; // Store 1-based index
 		if (pivot != k)
-		{
-			std::swap(pivots(k, 0), pivots(pivot, 0));
 			swap_rows(a, k, pivot);
-		}
 
 		compute_multipliers(a, k);
 		update_trailing_submatrix(a, k);
@@ -80,15 +77,15 @@ void forward_substitution(const gpu_fact::MatrixView<const double> a,
 void backward_substitution(const gpu_fact::MatrixView<const double> a,
                            gpu_fact::MatrixView<double> b)
 {
-    const int n = static_cast<int>(a.rows);
-    for (int i = n - 1; i >= 0; --i)
-    {
-        for (int j = i + 1; j < n; ++j)
-            b(i, 0) -= a(i, j) * b(j, 0);
-        if (a(i, i) == 0.0)
-            throw std::runtime_error("LU solve (host): singular matrix");
-        b(i, 0) /= a(i, i);
-    }
+	const int n = static_cast<int>(a.rows);
+	for (int i = n - 1; i >= 0; --i)
+	{
+		for (int j = i + 1; j < n; ++j)
+			b(i, 0) -= a(i, j) * b(j, 0);
+		if (a(i, i) == 0.0)
+			throw std::runtime_error("LU solve (host): singular matrix");
+		b(i, 0) /= a(i, i);
+	}
 }
 
 } // namespace
@@ -101,8 +98,8 @@ void lu_solve_host(MatrixView<double> a, MatrixView<int> pivots, MatrixView<doub
 	validate_lu_shapes(a, pivots, b);
 	factorise_matrix(a, pivots);
 	permute_rhs(pivots.as_const(), b);
-    forward_substitution(a.as_const(), pivots.as_const(), b);
-    backward_substitution(a.as_const(), b);
+	forward_substitution(a.as_const(), pivots.as_const(), b);
+	backward_substitution(a.as_const(), b);
 }
 
 } // namespace gpu_fact
