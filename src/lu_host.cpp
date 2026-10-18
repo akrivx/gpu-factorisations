@@ -52,6 +52,7 @@ void factorise_matrix(gpu_fact::MatrixView<double> a, gpu_fact::MatrixView<int> 
 		compute_multipliers(a, k);
 		update_trailing_submatrix(a, k);
 	}
+	pivots(n - 1, 0) = n;
 }
 
 void permute_rhs(const gpu_fact::MatrixView<const int> pivots, gpu_fact::MatrixView<double> b)

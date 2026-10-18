@@ -85,8 +85,8 @@ __global__ void swap_rows_kernel(gpu_fact::MatrixView<double> a, int k, const in
 	const int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if (col < a.cols)
 	{
-        const int row1 = k;
-        const int row2 = *pivot - 1; // Convert to 0-based index
+		const int row1 = k;
+		const int row2 = *pivot - 1; // Convert to 0-based index
 		const double temp = a(row1, col);
 		a(row1, col) = a(row2, col);
 		a(row2, col) = temp;
@@ -147,16 +147,28 @@ void update_trailing_submatrix(gpu_fact::MatrixView<double> a, int k)
 	GPU_FACT_CUDA_CHECK(cudaGetLastError());
 }
 
-void factorise_matrix(gpu_fact::MatrixView<double> a, gpu_fact::MatrixView<int> pivots, int* zero_pivot_flag)
+__global__ void finish_factorisation_kernel(gpu_fact::MatrixView<double> a,
+                                            gpu_fact::MatrixView<int> pivots, int* zero_pivot_flag)
+{
+	const auto last = a.rows - 1;
+	pivots(last, 0) = static_cast<int>(a.rows);
+	if (a(last, last) == 0.0)
+		*zero_pivot_flag = 1;
+}
+
+void factorise_matrix(gpu_fact::MatrixView<double> a, gpu_fact::MatrixView<int> pivots,
+                      int* zero_pivot_flag)
 {
 	const int n = static_cast<int>(a.rows);
 	for (int k = 0; k + 1 < n; ++k)
 	{
 		find_pivot(a, k, &pivots(k, 0));
-        swap_rows(a, k, &pivots(k, 0));
+		swap_rows(a, k, &pivots(k, 0));
 		compute_multipliers(a, k, zero_pivot_flag);
 		update_trailing_submatrix(a, k);
 	}
+	finish_factorisation_kernel<<<1, 1>>>(a, pivots, zero_pivot_flag);
+	GPU_FACT_CUDA_CHECK(cudaGetLastError());
 }
 
 } // namespace
@@ -167,9 +179,15 @@ namespace gpu_fact
 void lu_solve_device(MatrixView<double> a, MatrixView<int> pivots, MatrixView<double> b)
 {
 	validate_lu_shapes(a, pivots, b);
-    gpu_fact::DeviceBuffer<int> zero_pivot_flag(1);
-    GPU_FACT_CUDA_CHECK(cudaMemset(zero_pivot_flag.data(), 0, sizeof(int)));
-    factorise_matrix(a, pivots, zero_pivot_flag.data());
+	gpu_fact::DeviceBuffer<int> zero_pivot_flag(1);
+	GPU_FACT_CUDA_CHECK(cudaMemset(zero_pivot_flag.data(), 0, sizeof(int)));
+	factorise_matrix(a, pivots, zero_pivot_flag.data());
+	int singular = 0;
+	// The blocking copy also waits for factorisation and exposes execution errors.
+	GPU_FACT_CUDA_CHECK(
+	    cudaMemcpy(&singular, zero_pivot_flag.data(), sizeof(singular), cudaMemcpyDeviceToHost));
+	if (singular)
+		throw std::runtime_error("LU solve (device): singular matrix");
 }
 
 } // namespace gpu_fact
