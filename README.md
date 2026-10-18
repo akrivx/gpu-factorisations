@@ -69,9 +69,8 @@ address space. The device API uses views pointing to device storage.
 
 The reference uses LAPACKE's `LAPACKE_dgesv` with `LAPACK_ROW_MAJOR`; its internal
 layout conversion is part of the reference runtime. Save input copies for
-residual checks. Singular matrices raise exceptions. `lu_host` remains a stub
-that validates its views and then throws; the device method is declared for
-future implementation.
+residual checks. Singular matrices raise exceptions. `lu_host` and `lu_device`
+are stubs that validate their views and then throw a "not yet implemented" error.
 
 `lu_example` solves a system requiring row pivoting and checks the known solution
 and singular-matrix handling. It then evaluates `Ax` with cuBLAS, subtracts `b`

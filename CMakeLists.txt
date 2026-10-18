@@ -20,10 +20,15 @@ add_library(lu_host src/lu_host.cpp)
 target_include_directories(lu_host PUBLIC include)
 target_compile_features(lu_host PUBLIC cxx_std_17)
 
+add_library(lu_device src/lu_device.cu)
+target_include_directories(lu_device PUBLIC include)
+set_target_properties(lu_device PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED YES)
+target_link_libraries(lu_device PRIVATE CUDA::cudart CUDA::cublas)
+
 # Link this target from new CUDA experiments to get the common dependencies.
 add_library(factorisation_dependencies INTERFACE)
 target_link_libraries(factorisation_dependencies INTERFACE
-  lu_reference lu_host CUDA::cudart CUDA::cublas)
+  lu_reference lu_host lu_device CUDA::cudart CUDA::cublas)
 
 add_executable(lu_example src/lu_example.cu)
 target_link_libraries(lu_example PRIVATE factorisation_dependencies)
