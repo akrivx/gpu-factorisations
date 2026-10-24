@@ -4,6 +4,7 @@ PointerAlignment: Left
 ReferenceAlignment: Left
 UseTab: ForIndentation
 IndentWidth: 4
+AccessModifierOffset: -4
 TabWidth: 4
 BreakBeforeBraces: Allman
 AllowShortBlocksOnASingleLine: Never
