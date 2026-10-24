@@ -10,7 +10,7 @@ namespace gpu_fact
 // Destroy or replace the handle while its CUDA device/context remains valid.
 class BlasHandle
 {
-  public:
+public:
 	BlasHandle()
 	{
 		GPU_FACT_CUBLAS_CHECK(cublasCreate(&handle_));
@@ -43,7 +43,7 @@ class BlasHandle
 			GPU_FACT_CUBLAS_CHECK_NOEXCEPT(cublasDestroy(std::exchange(handle_, nullptr)));
 	}
 
-  private:
+private:
 	cublasHandle_t handle_ = nullptr;
 };
 

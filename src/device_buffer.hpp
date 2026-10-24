@@ -12,7 +12,7 @@ namespace gpu_fact
 // Destroy or replace the buffer while its CUDA device/context remains valid.
 template <typename T = double> class DeviceBuffer
 {
-  public:
+public:
 	DeviceBuffer() noexcept = default;
 	explicit DeviceBuffer(std::size_t n)
 	{
@@ -65,7 +65,7 @@ template <typename T = double> class DeviceBuffer
 		size_ = 0;
 	}
 
-  private:
+private:
 	T* data_ = nullptr;
 	std::size_t size_ = 0;
 };
